@@ -125,3 +125,5 @@ dmypy.json
 # SAL
 ospl-error
 ospl-info
+
+*.pkl
