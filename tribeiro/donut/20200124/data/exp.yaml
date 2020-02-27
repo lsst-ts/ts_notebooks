@@ -1,0 +1,56 @@
+---
+#which Zernikes to use
+#ZTerms			4 11 22
+
+Increase_resolution			1
+Feedback_gain                           0.6
+
+#Compensator_mode: can be opd or zer
+Compensator_mode                        zer
+
+Compensator_oversample                  1
+OffAxis_poly_order                      10
+Compensation_sequence                   comp_sequ_14.txt
+Boundary_thickness (pixel)              8
+
+
+
+# Algorithm parameters to solve the transport of intensity equation (TIE)
+
+# The way to solve the Poisson equation
+# fft: Fast Fourier transform method per Roddier & Roddier 1993
+# exp: Series expansion method per Guruyev & Nugent 1996
+poissonSolver: exp
+
+# Maximum number of Zernike polynomials supported
+numOfZernikes: 22
+
+# Obscuration ratio used in Zernike polynomials
+# 0: Standard filled
+# 1: Annular as defined by system in instParam.yaml
+# others (0 < x < 1): Use as the obscuration ratio
+obsOfZernikes: 1
+
+# Number of outer loop iteration when solving TIE
+numOfOuterItr: 14
+
+# Gain value used in the outer loop iteration
+feedbackGain: 0.6
+
+# Number of polynomial order supported in off-axis correction
+offAxisPolyOrder: 10
+
+# Method to compensate the wavefront by wavefront error
+# zer: Derivatives and Jacobians calculated from Zernike polynomials
+# opd: Derivitives and Jacobians calculated from wavefront map
+compensatorMode: zer
+
+# Compensate the image based on the Zk from the lower terms first according to
+# the sequence defined here
+# Sets compensated zernike order vs iteration
+compSequence: [4, 4, 6, 6, 13, 13, 13, 13, 22, 22, 22, 22, 22, 22]
+
+# Defines how far the computation mask extends beyond the pupil mask and, in
+# fft algorithm, it is also the width of Neuman boundary where the derivative
+# of the wavefront is set to zero
+boundaryThickness: 8
