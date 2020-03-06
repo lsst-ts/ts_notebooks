@@ -1,0 +1,13 @@
+
+obscuration: 0.3525
+focalLength: 21.6
+apertureDiameter: 1.2
+offset:
+offset:
+  0.02050mm: 0.0205
+  0.50000mm: 0.5e-3
+  1.00000mm: 1.0e-3
+  1.50000mm: 1.5e-3
+  2.00000mm: 2.0e-3
+  2.50000mm: 2.50e-3
+pixelSize: 1.44e-5

@@ -1,0 +1,14 @@
+data/1579925613-16Pup_intra-0-1.fits
+data/1579925662-16Pup_extra-0-1.fits
+data/1579925833-16Pup_intra-0-1.fits
+data/1579925882-16Pup_extra-0-1.fits
+data/1579926008-16Pup_intra-0-1.fits
+data/1579926057-16Pup_extra-0-1.fits
+data/1579926150-16Pup_intra-0-1.fits
+data/1579926201-16Pup_extra-0-1.fits
+data/1579926455-16Pup_intra-0-1.fits
+data/1579926507-16Pup_extra-0-1.fits
+data/1579926576-16Pup_intra-0-1.fits
+data/1579926630-16Pup_extra-0-1.fits
+data/1579927046-16Pup_intra-0-1.fits
+data/1579927100-16Pup_extra-0-1.fits
