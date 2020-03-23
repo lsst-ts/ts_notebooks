@@ -1,16 +1,17 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-import logging
-import yaml
+""" This script is a cutout of a notebook to drive a quick test of the main
+telescope pointing component, rotator and mount controller. It was developed
+as part of the Camera Cable Wrap + Rotator integration test.
+"""
 
-import numpy as np
-from matplotlib import pyplot as plt
 import astropy.units as u
 from astropy.time import Time
-from astropy.coordinates import AltAz, ICRS, EarthLocation, Angle, FK5
+from astropy.coordinates import AltAz, ICRS, EarthLocation, Angle
 import asyncio
 from lsst.ts import salobj
+# Using enums from ATPtg because MTPtg is not defined yet.
 from lsst.ts.idl.enums import ATPtg
 
 from astropy.utils import iers
@@ -27,6 +28,7 @@ async def amain():
 
     await salobj.set_summary_state(mtptg, salobj.State.ENABLED)
 
+    # This should probably eventually come from the pointing component.
     location = EarthLocation.from_geodetic(lon=-70.747698*u.deg,
                                            lat=-30.244728*u.deg,
                                            height=2663.0*u.m)
@@ -57,8 +59,8 @@ async def amain():
         target_name="Rotator test"
         radec = ICRS(ra, dec)
 
-        curr_time_atptg = Time(time_data.tai, format="mjd", scale="tai")
-        coord_frame_altaz = AltAz(location=location, obstime=curr_time_atptg)
+        curr_time_mtptg = Time(time_data.tai, format="mjd", scale="tai")
+        coord_frame_altaz = AltAz(location=location, obstime=curr_time_mtptg)
         alt_az = radec.transform_to(coord_frame_altaz)
 
         print(180.-alt_az.alt.deg)
@@ -88,8 +90,6 @@ async def amain():
 
     await mtptg.cmd_stopTracking.start(timeout=30)
 
+
 if __name__ == "__main__":
     asyncio.get_event_loop().run_until_complete(amain())
-
-
-
