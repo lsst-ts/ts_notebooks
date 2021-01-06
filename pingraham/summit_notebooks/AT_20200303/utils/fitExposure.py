@@ -61,3 +61,4 @@ def fit2DGaussian(exposure, plot=True):
         print(repr(p))
             
     return(p, y, x)
+

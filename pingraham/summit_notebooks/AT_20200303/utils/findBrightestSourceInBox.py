@@ -39,3 +39,4 @@ def findBrightestSourceInBox(sources, bbox):
         raise ValueError('No identified sources found in supplied bounding box')
     
     return(identified_source, identified_peak)
+

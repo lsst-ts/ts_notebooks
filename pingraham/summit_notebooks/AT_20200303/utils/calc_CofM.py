@@ -28,3 +28,4 @@ def calc_CofM(exposure):
     logger.info('x_CofM is {}'.format(x_CofM))
     logger.info('y_CofM is {}'.format(y_CofM))
     return(x_CofM, y_CofM)
+

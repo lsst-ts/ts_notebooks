@@ -42,3 +42,4 @@ async def grabATImage(visitID, repo, timeout=20, poll_freq_hz = 1):
         raise NameError('No image found in the timeout of {} [s]'.format(timeout))
     
     return(exposure)
+
