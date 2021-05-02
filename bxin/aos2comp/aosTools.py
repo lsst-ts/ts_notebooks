@@ -226,38 +226,44 @@ async def readyM2(m2):
     print('clear any M2 activeopticForces (or any other hunman-applied forces)')
     await m2.cmd_resetForceOffsets.set_start()
     
-async def moveHexTo0(hex):
+async def moveHexaTo0(hexa):
     ### command it to collimated position (based on LUT)
-    hex.evt_inPosition.flush()
-    #according to XML, units are micron and degree
-    await hex.cmd_move.set_start(x=0,y=0,z=0, u=0,v=0,w=0,sync=True)
-    while True:
-        state = await hex.evt_inPosition.next(flush=False, timeout=10)
-        print("hex in position?",state.inPosition, pd.to_datetime(state.private_sndStamp, unit='s'))
-        if state.inPosition:
-            break
-    await printHexPosition(hex)
     
-async def printHexPosition(hex):
-    pos = await hex.tel_application.next(flush=True, timeout=10.)
+    posU = await hexa.evt_uncompensatedPosition.aget(timeout=10.)
+    if abs(max([getattr(posU, i) for i in 'xyzuvw']))<1e-8:
+        print('hexapod already at LUT position')
+    else:
+            
+        hexa.evt_inPosition.flush()
+        #according to XML, units are micron and degree
+        await hexa.cmd_move.set_start(x=0,y=0,z=0, u=0,v=0,w=0,sync=True)
+        while True:
+            state = await hexa.evt_inPosition.next(flush=False, timeout=10)
+            print("hexa in position?",state.inPosition, pd.to_datetime(state.private_sndStamp, unit='s'))
+            if state.inPosition:
+                break
+        await printHexaPosition(hexa)
+    
+async def printHexaPosition(hexa):
+    pos = await hexa.tel_application.next(flush=True, timeout=10.)
     print("Current Hexapod position")
     print(" ".join(f"{p:10.2f}" for p in pos.position[:3]), end = ' ') 
     print(" ".join(f"{p:10.6f}" for p in pos.position[3:]) )
     
-async def printHexUncompensatedAndCompensated(hex):
-    posU = await hex.evt_uncompensatedPosition.aget(timeout=10.)
+async def printHexaUncompensatedAndCompensated(hexa):
+    posU = await hexa.evt_uncompensatedPosition.aget(timeout=10.)
     print('Uncompensated position')
     print(" ".join(f"{p:10.2f}" for p in [getattr(posU, i) for i in 'xyz']), end = '    ')
     print(" ".join(f"{p:10.6f}" for p in [getattr(posU, i) for i in 'uvw']),'  ',
          pd.to_datetime(posU.private_sndStamp, unit='s'))    
-    posC = await hex.evt_compensatedPosition.aget(timeout=10.)
+    posC = await hexa.evt_compensatedPosition.aget(timeout=10.)
     print('Compensated position')
     print(" ".join(f"{p:10.2f}" for p in [getattr(posC, i) for i in 'xyz']), end = '     ')
     print(" ".join(f"{p:10.6f}" for p in [getattr(posC, i) for i in 'uvw']),'  ',
          pd.to_datetime(posC.private_sndStamp, unit='s'))
 
-async def readyHexForAOS(hex):
-    settings = hex.evt_settingsApplied.get()
+async def readyHexaForAOS(hexa):
+    settings = await hexa.evt_settingsApplied.aget(timeout = 10.)
     hasSettings = 0
     if hasattr(settings, 'settingsVersion'):
         print(settings.settingsVersion)
@@ -265,29 +271,105 @@ async def readyHexForAOS(hex):
     if (not hasSettings) or (not settings.settingsVersion[:12] == 'default.yaml'):
         print('YOU NEED TO SEND THIS HEXAPOD TO STANDBY, THEN LOAD THE PROPER CONFIG')
     else:
-        hexConfig = await hex.evt_configuration.aget(timeout=10.)
-        print("pivot at (%.0f, %.0f, %.0f) microns "%(hexConfig.pivotX, hexConfig.pivotY, hexConfig.pivotZ))
-        print("maxXY = ", hexConfig.maxXY, "microns, maxZ= ", hexConfig.maxZ, " microns")
-        print("maxUV = ", hexConfig.maxUV, "deg, maxW= ", hexConfig.maxW, " deg")
+        hexaConfig = await hexa.evt_configuration.aget(timeout=10.)
+        print("pivot at (%.0f, %.0f, %.0f) microns "%(hexaConfig.pivotX, hexaConfig.pivotY, hexaConfig.pivotZ))
+        print("maxXY = ", hexaConfig.maxXY, "microns, maxZ= ", hexaConfig.maxZ, " microns")
+        print("maxUV = ", hexaConfig.maxUV, "deg, maxW= ", hexaConfig.maxW, " deg")
 
-        lutMode = await hex.evt_compensationMode.aget(timeout=10)
+        lutMode = await hexa.evt_compensationMode.aget(timeout=10)
         if not lutMode.enabled:
-            await hex.cmd_setCompensationMode.set_start(enable=1, timeout=10)
+            await hexa.cmd_setCompensationMode.set_start(enable=1, timeout=10)
         print("compsensation mode enabled?",lutMode.enabled, pd.to_datetime(lutMode.private_sndStamp, unit='s'))
         print("Does the hexapod has enough inputs to do LUT compensation?")
-        #Note: the target events are what the hex CSC checks; if one is missing, the entire LUT will not be applied
-        a = hex.evt_compensationOffset.get()
+        #Note: the target events are what the hexa CSC checks; if one is missing, the entire LUT will not be applied
+        a = await hexa.evt_compensationOffset.aget(timeout=10.)
         print('mount elevation = ', a.elevation)
         print('mount azimth = ', a.azimuth)
         print('rotator angle = ', a.rotation)
         print('? temperature = ', a.temperature)
         print('x,y,z,u,v,w = ', a.x, a.y, a.z, a.u, a.v, a.w)
         
-        posU = await hex.evt_uncompensatedPosition.aget(timeout=10.)
-        if abs(max([getattr(posU, i) for i in 'xyzuvw']))>0:
-            moveHexTo0(hex)
-        else:
-            print('hexapod already at LUT position')
+        await moveHexaTo0(hexa)
+
+async def ofcSentApplied(aos, m1m3, m2, camhex, m2hex, make_plot=False):
+    dof = await aos.evt_degreeOfFreedom.aget(timeout = 5.)
+    m1m3C = await aos.evt_m1m3Correction.aget(timeout = 5.)
+    m2C = await aos.evt_m2Correction.aget(timeout = 5.)
+    camhexC = await aos.evt_cameraHexapodCorrection.aget(timeout = 5.)
+    m2hexC = await aos.evt_m2HexapodCorrection.aget(timeout = 5.)
+    
+    aggregated_dof = np.array(dof.aggregatedDoF)
+    visit_dof = np.array(dof.visitDoF)
+    m1m3C = m1m3C.zForces
+    m2C = m2C.zForces
+    camhexC = np.array([getattr(camhexC,i) for i in ['x', 'y', 'z', 'u','v','w']])
+    m2hexC = np.array([getattr(m2hexC,i) for i in ['x', 'y', 'z', 'u','v','w']])
+    
+    print('DOF event time = ', pd.to_datetime(dof.private_sndStamp, unit='s'))
+    
+    m1m3F = await m1m3.evt_appliedActiveOpticForces.aget(timeout = 5.)
+    m2F = await m2.tel_axialForce.next(flush=False, timeout=5.)
+    camhexP = await camhex.evt_uncompensatedPosition.aget(timeout = 5.)
+    m2hexP = await m2hex.evt_uncompensatedPosition.aget(timeout = 5.)
+    
+    m1m3F = m1m3F.zForces
+    m2F = m2F.applied
+    camhexP = np.array([getattr(camhexP,i) for i in ['x','y','z', 'u','v','w']]) 
+    m2hexP = np.array([getattr(m2hexP,i) for i in ['u','v','z', 'u','v','w']])
+    
+    if make_plot:
+        fig, ax = plt.subplots(2,3, figsize=(19,8) )
+        ##--------------------------------------
+        ax[0][0].plot(aggregated_dof[:10],'-bo', label='aggregatedDoF')
+        ax[0][0].plot(visit_dof[:10],'-rx', label='visitDoF')
+        ax[0][0].set_title('hexapod DoF')
+        ax[0][0].legend()
+
+        ax[0][1].plot(aggregated_dof[10:], '-bo', label='aggregatedDoF')
+        ax[0][1].plot(visit_dof[10:],'-rx', label='visitDoF')
+        ax[0][1].set_title('Mirrors DoF')
+        ax[0][1].legend()
+
+        ##--------------------------------------
+        ax[0][2].plot(m1m3C,'-o', label='forces sent')
+        ax[0][2].plot(m1m3F, '-rx', label='forces applied')
+        ax[0][2].set_title('M1M3 Forces')
+        ax[0][2].legend()
+
+        ax[1][0].plot(m2C,'-o', label='forces sent')
+        ax[1][0].plot(m2F, '-x', label='forces applied')
+        ax[1][0].set_title('M2 Forces')
+        ax[1][0].legend()
+
+        ##--------------------------------------
+        ax[1][1].plot(camhexC[:3], '-ro', label='cam hex xyz Sent', markersize=8)
+        ax[1][1].plot(m2hexC[:3],'-bx', label='m2 hex xyz Sent')
+        ax[1][1].plot(camhexP[:3], '-o',  label='cam hex xyz Applied')
+        ax[1][1].plot(m2hexP[:3], '-v', label='m2 hex xyz Applied')
+        ax[1][1].set_title('Hex xyz')
+        ax[1][1].legend()
+
+        ax[1][2].plot(camhexC[3:], '-ro', label='cam hex uvw Sent')
+        ax[1][2].plot(m2hexC[3:], '-bx', label='m2 hex uvw Sent')
+        ax[1][2].plot(camhexP[3:], '-o', label='cam hex uvw Applied')
+        ax[1][2].plot(m2hexP[3:], '-v', label='m2 hex uvw Applied')
+        ax[1][2].set_title('M2 Hex xyzuvw')
+        ax[1][2].legend()
+    
+    ofc_dict = {}
+    ofc_dict['aggregated_dof'] = aggregated_dof
+    ofc_dict['visit_dof'] = visit_dof
+    ofc_dict['m1m3C'] = m1m3C
+    ofc_dict['m2C'] = m2C
+    ofc_dict['camhexC'] = camhexC
+    ofc_dict['m2hexC'] = m2hexC
+    ofc_dict['m1m3F'] = m1m3F
+    ofc_dict['m2F'] = m2F
+    ofc_dict['camhexP'] = camhexP
+    ofc_dict['m2hexP'] = m2hexP
+    
+    print('If corrections have been issued, we should always expect sent (xxC) to match applied (xxF & xxP)')
+    return ofc_dict
         
 async def moveMountConstantV(mount, startAngle, stopAngle):
     #change the elevation angle step by step
