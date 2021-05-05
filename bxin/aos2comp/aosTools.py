@@ -118,8 +118,9 @@ async def readyM1M3(m1m3):
     
     m1m3ForceBalance = await m1m3.evt_appliedBalanceForces.aget(timeout=10.)
     if not m1m3ForceBalance.forceMagnitude:
+        m1m3.evt_appliedBalanceForces.flush()
         await m1m3.cmd_enableHardpointCorrections.set_start(timeout=10)
-        await asyncio.sleep(3.)
+        m1m3ForceBalance = await m1m3.evt_appliedBalanceForces.next(flush=False, timeout=10.)
     m1m3ForceBalance = await m1m3.evt_appliedBalanceForces.aget(timeout=10.)
     print("Magnitude of the m1m3 force balance system", m1m3ForceBalance.forceMagnitude)
     
@@ -229,11 +230,16 @@ async def readyM2(m2):
 async def moveHexaTo0(hexa):
     ### command it to collimated position (based on LUT)
     
-    posU = await hexa.evt_uncompensatedPosition.aget(timeout=10.)
-    if abs(max([getattr(posU, i) for i in 'xyzuvw']))<1e-8:
-        print('hexapod already at LUT position')
-    else:
-            
+    need_to_move = False
+    try:
+        posU = await hexa.evt_uncompensatedPosition.aget(timeout=10.)
+        if abs(max([getattr(posU, i) for i in 'xyzuvw']))<1e-8:
+            print('hexapod already at LUT position')
+        else:
+            need_to_move = True
+    except TimeoutError:
+        need_to_move = True
+    if need_to_move:
         hexa.evt_inPosition.flush()
         #according to XML, units are micron and degree
         await hexa.cmd_move.set_start(x=0,y=0,z=0, u=0,v=0,w=0,sync=True)
@@ -266,7 +272,7 @@ async def readyHexaForAOS(hexa):
     settings = await hexa.evt_settingsApplied.aget(timeout = 10.)
     hasSettings = 0
     if hasattr(settings, 'settingsVersion'):
-        print(settings.settingsVersion)
+        print('settingsVersion = ', settings.settingsVersion, pd.to_datetime(settings.private_sndStamp, unit='s'))
         hasSettings = 1
     if (not hasSettings) or (not settings.settingsVersion[:12] == 'default.yaml'):
         print('YOU NEED TO SEND THIS HEXAPOD TO STANDBY, THEN LOAD THE PROPER CONFIG')
@@ -278,18 +284,22 @@ async def readyHexaForAOS(hexa):
 
         lutMode = await hexa.evt_compensationMode.aget(timeout=10)
         if not lutMode.enabled:
+            hexa.evt_compensationMode.flush()
             await hexa.cmd_setCompensationMode.set_start(enable=1, timeout=10)
+            lutMode = await hexa.evt_compensationMode.next(flush=False, timeout=10)
         print("compsensation mode enabled?",lutMode.enabled, pd.to_datetime(lutMode.private_sndStamp, unit='s'))
-        print("Does the hexapod has enough inputs to do LUT compensation?")
+        await moveHexaTo0(hexa)
+        await printHexaUncompensatedAndCompensated(hexa)
+        print("Does the hexapod has enough inputs to do LUT compensation? (If the below times out, we do not.)")
         #Note: the target events are what the hexa CSC checks; if one is missing, the entire LUT will not be applied
+        #it also needs to see an uncompensatedPosition (a move would trigger that) in order to move to the compensatedPosition
         a = await hexa.evt_compensationOffset.aget(timeout=10.)
         print('mount elevation = ', a.elevation)
         print('mount azimth = ', a.azimuth)
         print('rotator angle = ', a.rotation)
         print('? temperature = ', a.temperature)
         print('x,y,z,u,v,w = ', a.x, a.y, a.z, a.u, a.v, a.w)
-        
-        await moveHexaTo0(hexa)
+
 
 async def ofcSentApplied(aos, m1m3, m2, camhex, m2hex, make_plot=False):
     dof = await aos.evt_degreeOfFreedom.aget(timeout = 5.)
@@ -308,14 +318,14 @@ async def ofcSentApplied(aos, m1m3, m2, camhex, m2hex, make_plot=False):
     print('DOF event time = ', pd.to_datetime(dof.private_sndStamp, unit='s'))
     
     m1m3F = await m1m3.evt_appliedActiveOpticForces.aget(timeout = 5.)
-    m2F = await m2.tel_axialForce.next(flush=False, timeout=5.)
+    m2F = await m2.tel_axialForce.next(flush=True, timeout=5.)
     camhexP = await camhex.evt_uncompensatedPosition.aget(timeout = 5.)
     m2hexP = await m2hex.evt_uncompensatedPosition.aget(timeout = 5.)
     
     m1m3F = m1m3F.zForces
     m2F = m2F.applied
     camhexP = np.array([getattr(camhexP,i) for i in ['x','y','z', 'u','v','w']]) 
-    m2hexP = np.array([getattr(m2hexP,i) for i in ['u','v','z', 'u','v','w']])
+    m2hexP = np.array([getattr(m2hexP,i) for i in ['x','y','z', 'u','v','w']])
     
     if make_plot:
         fig, ax = plt.subplots(2,3, figsize=(19,8) )
