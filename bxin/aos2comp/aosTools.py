@@ -227,7 +227,7 @@ async def readyM2(m2):
     print('clear any M2 activeopticForces (or any other hunman-applied forces)')
     await m2.cmd_resetForceOffsets.set_start()
     
-async def moveHexaTo0(hexa):
+async def moveHexaTo0(hexa, actual_z = 0):
     ### command it to collimated position (based on LUT)
     
     need_to_move = False
@@ -237,12 +237,12 @@ async def moveHexaTo0(hexa):
             print('hexapod already at LUT position')
         else:
             need_to_move = True
-    except TimeoutError:
+    except asyncio.exceptions.TimeoutError:
         need_to_move = True
     if need_to_move:
         hexa.evt_inPosition.flush()
         #according to XML, units are micron and degree
-        await hexa.cmd_move.set_start(x=0,y=0,z=0, u=0,v=0,w=0,sync=True)
+        await hexa.cmd_move.set_start(x=0,y=0,z=actual_z, u=0,v=0,w=0,sync=True)
         while True:
             state = await hexa.evt_inPosition.next(flush=False, timeout=10)
             print("hexa in position?",state.inPosition, pd.to_datetime(state.private_sndStamp, unit='s'))
@@ -288,6 +288,7 @@ async def readyHexaForAOS(hexa):
             await hexa.cmd_setCompensationMode.set_start(enable=1, timeout=10)
             lutMode = await hexa.evt_compensationMode.next(flush=False, timeout=10)
         print("compsensation mode enabled?",lutMode.enabled, pd.to_datetime(lutMode.private_sndStamp, unit='s'))
+        await moveHexaTo0(hexa, actual_z = 100)
         await moveHexaTo0(hexa)
         await printHexaUncompensatedAndCompensated(hexa)
         print("Does the hexapod has enough inputs to do LUT compensation? (If the below times out, we do not.)")
@@ -298,7 +299,7 @@ async def readyHexaForAOS(hexa):
         print('mount azimth = ', a.azimuth)
         print('rotator angle = ', a.rotation)
         print('? temperature = ', a.temperature)
-        print('x,y,z,u,v,w = ', a.x, a.y, a.z, a.u, a.v, a.w)
+        print('x,y,z,u,v,w = ', a.x, a.y, a.z, a.u, a.v, a.w, pd.to_datetime(a.private_sndStamp, unit='s'))
 
 
 async def ofcSentApplied(aos, m1m3, m2, camhex, m2hex, make_plot=False):
