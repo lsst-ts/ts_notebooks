@@ -263,7 +263,7 @@ async def printHexaUncompensatedAndCompensated(hexa):
     print(" ".join(f"{p:10.6f}" for p in [getattr(posU, i) for i in 'uvw']),'  ',
          pd.to_datetime(posU.private_sndStamp, unit='s'))    
     posC = await hexa.evt_compensatedPosition.aget(timeout=10.)
-    print('Compensated position')
+    print('Compensated position = (uncompensated + LUT)')
     print(" ".join(f"{p:10.2f}" for p in [getattr(posC, i) for i in 'xyz']), end = '     ')
     print(" ".join(f"{p:10.6f}" for p in [getattr(posC, i) for i in 'uvw']),'  ',
          pd.to_datetime(posC.private_sndStamp, unit='s'))
