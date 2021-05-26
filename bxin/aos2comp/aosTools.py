@@ -5,6 +5,8 @@ import time
 
 import pandas as pd
 from matplotlib import pyplot as plt
+from astropy.time import Time
+from datetime import datetime, timedelta
 
 from M1M3_FATABLE import *
 
@@ -227,28 +229,18 @@ async def readyM2(m2):
     print('clear any M2 activeopticForces (or any other hunman-applied forces)')
     await m2.cmd_resetForceOffsets.set_start()
     
-async def moveHexaTo0(hexa):
-    ### command it to collimated position (based on LUT)
+async def moveHexaTo0(hexa, user_z = 0):
+    ### command it to collimated position (based on LUT), or with offset user_z
     
-    need_to_move = False
-    try:
-        posU = await hexa.evt_uncompensatedPosition.aget(timeout=10.)
-        if abs(max([getattr(posU, i) for i in 'xyzuvw']))<1e-8:
-            print('hexapod already at LUT position')
-        else:
-            need_to_move = True
-    except TimeoutError:
-        need_to_move = True
-    if need_to_move:
-        hexa.evt_inPosition.flush()
-        #according to XML, units are micron and degree
-        await hexa.cmd_move.set_start(x=0,y=0,z=0, u=0,v=0,w=0,sync=True)
-        while True:
-            state = await hexa.evt_inPosition.next(flush=False, timeout=10)
-            print("hexa in position?",state.inPosition, pd.to_datetime(state.private_sndStamp, unit='s'))
-            if state.inPosition:
-                break
-        await printHexaPosition(hexa)
+    hexa.evt_inPosition.flush()
+    #according to XML, units are micron and degree
+    await hexa.cmd_move.set_start(x=0,y=0,z=user_z, u=0,v=0,w=0,sync=True)
+    while True:
+        state = await hexa.evt_inPosition.next(flush=False, timeout=10)
+        print("hexa in position?",state.inPosition, pd.to_datetime(state.private_sndStamp, unit='s'))
+        if state.inPosition:
+            break
+    await printHexaPosition(hexa)
     
 async def printHexaPosition(hexa):
     pos = await hexa.tel_application.next(flush=True, timeout=10.)
@@ -288,6 +280,7 @@ async def readyHexaForAOS(hexa):
             await hexa.cmd_setCompensationMode.set_start(enable=1, timeout=10)
             lutMode = await hexa.evt_compensationMode.next(flush=False, timeout=10)
         print("compsensation mode enabled?",lutMode.enabled, pd.to_datetime(lutMode.private_sndStamp, unit='s'))
+        await moveHexaTo0(hexa, user_z = 100)
         await moveHexaTo0(hexa)
         await printHexaUncompensatedAndCompensated(hexa)
         print("Does the hexapod has enough inputs to do LUT compensation? (If the below times out, we do not.)")
@@ -385,25 +378,29 @@ async def moveMountConstantV(mount, startAngle, stopAngle):
     #change the elevation angle step by step
 
     freq = 1 #Hz
-    vAngle = 2 #1 deg change per minute
+    vAngle = 5 #1 deg change per minute
     holdMinutes = 0.1 #how long to hold at integeter values of the elevation angle
     angleStepSize = 1 #each time we change by 1 deg, before we hold in place
 
     rampMinutes = angleStepSize/vAngle
-    print('This will run for %.0f minutes'%((startAngle - stopAngle)*(rampMinutes+holdMinutes)))
+    print('This will run for %.0f seconds'%(abs(startAngle - stopAngle)/angleStepSize*(rampMinutes+holdMinutes)*60))
     start_time = Time(datetime.now())
     startTime = time.time()
     end_time = start_time + timedelta(minutes=80)
     demandAngle = startAngle
-    while demandAngle > stopAngle-0.01:
+    angle_sign = np.sign(stopAngle - startAngle)
+    while abs(demandAngle - stopAngle)>0.1:
         await asyncio.sleep(1.0/freq)
 
         timeNow = time.time()
         minutesEllapsed = (timeNow - startTime)/60
         cyclePassed = np.floor(minutesEllapsed/(rampMinutes+holdMinutes))
         minutesIntoThisCycle = min(rampMinutes, minutesEllapsed - cyclePassed*(rampMinutes+holdMinutes))
-        demandAngle = startAngle -  cyclePassed*angleStepSize - minutesIntoThisCycle * vAngle
+        demandAngle = startAngle + angle_sign * (cyclePassed*angleStepSize + minutesIntoThisCycle * vAngle)
         #print(demandAngle, cyclePassed, minutesIntoThisCycle)
         await mount.cmd_moveToTarget.set_start(azimuth=0, elevation=demandAngle)
+        
+        #a = await mount.tel_cameraCableWrap.next(flush=True, timeout=5)
+        #await rot.cmd_move.set_start(position=a.actualPosition)
         
         
