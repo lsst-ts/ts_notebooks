@@ -98,7 +98,7 @@ async def raiseM1M3(m1m3):
     m1m3.evt_detailedState.flush()
     await m1m3.cmd_raiseM1M3.set_start(raiseM1M3=True, timeout = 30)
     while True:
-        state = await m1m3.evt_detailedState.next(flush=False, timeout=300)
+        state = await m1m3.evt_detailedState.next(flush=False, timeout=500)
         print('m1m3 state', MTM1M3.DetailedState(state.detailedState), pd.to_datetime(state.private_sndStamp, unit='s'))
         if (MTM1M3.DetailedState(state.detailedState) == MTM1M3.DetailedState.ACTIVE
                 or MTM1M3.DetailedState(state.detailedState) == MTM1M3.DetailedState.ACTIVEENGINEERING):
@@ -377,27 +377,24 @@ async def ofcSentApplied(aos, m1m3, m2, camhex, m2hex, make_plot=False):
 async def moveMountConstantV(mount, startAngle, stopAngle):
     #change the elevation angle step by step
 
-    freq = 1 #Hz
-    vAngle = 5 #1 deg change per minute
-    holdMinutes = 0.1 #how long to hold at integeter values of the elevation angle
+    freq = 1. #Hz how frequent to publish new targets
+    vAngle = 2 #1 deg change per minute
+    holdMinutes = 0.3 #how long to hold at integeter values of the elevation angle
     angleStepSize = 1 #each time we change by 1 deg, before we hold in place
 
     rampMinutes = angleStepSize/vAngle
     print('This will run for %.0f seconds'%(abs(startAngle - stopAngle)/angleStepSize*(rampMinutes+holdMinutes)*60))
-    start_time = Time(datetime.now())
-    startTime = time.time()
-    end_time = start_time + timedelta(minutes=80)
     demandAngle = startAngle
     angle_sign = np.sign(stopAngle - startAngle)
+    minutesEllapsed = 0
     while abs(demandAngle - stopAngle)>0.1:
         await asyncio.sleep(1.0/freq)
 
-        timeNow = time.time()
-        minutesEllapsed = (timeNow - startTime)/60
+        minutesEllapsed += 1.0/freq/60
         cyclePassed = np.floor(minutesEllapsed/(rampMinutes+holdMinutes))
         minutesIntoThisCycle = min(rampMinutes, minutesEllapsed - cyclePassed*(rampMinutes+holdMinutes))
         demandAngle = startAngle + angle_sign * (cyclePassed*angleStepSize + minutesIntoThisCycle * vAngle)
-        #print(demandAngle, cyclePassed, minutesIntoThisCycle)
+        print(demandAngle,  cyclePassed, minutesIntoThisCycle, minutesEllapsed)
         await mount.cmd_moveToTarget.set_start(azimuth=0, elevation=demandAngle)
         
         #a = await mount.tel_cameraCableWrap.next(flush=True, timeout=5)
