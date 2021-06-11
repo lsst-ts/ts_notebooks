@@ -11,6 +11,7 @@ from lsst.daf.persistence import Butler
 # Bring in Lupton's unpacking code
 def merge_packed_time_series(packed_dataframe, base_field, stride=1, 
                              ref_timestamp_col="cRIO_timestamp", internal_time_scale="utc"):
+    # Note that I changed the time scale to UTC here to be compatible with the change to the EFD - Lage
     """Select fields that are time samples and unpack them into a dataframe.
             Parameters
             ----------
@@ -215,10 +216,8 @@ async def MountTracking(expId, pdf, butler, client, fail_limit=0.5, makeGraph=Tr
 async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--expId', help='firstExpId: Format 2021021800736')
-    #parser.add_argument('--lastExpId', help='lastExpId: Format 2021021800736')
     args = parser.parse_args()
     expId = int(args.expId)
-    #lastExpId = int(args.lastExpId)
 
     client = EfdClient('summit_efd')
     REPO_DIR = '/readonly/lsstdata/auxtel/base/auxtel/oods/butler/repo'
