@@ -12,6 +12,7 @@ from M1M3_FATABLE import *
 
 from lsst.ts import salobj
 from lsst.ts.idl.enums import MTM1M3
+from lsst.ts.idl.enums import MTM2
 from lsst.ts.idl.enums import MTHexapod
 
 m3ORC = 2.508
@@ -219,7 +220,11 @@ async def readyM2(m2):
     
     zAngle = await m2.tel_zenithAngle.next(flush=True, timeout=5)
     print('m2 inclinometer angle = ', zAngle.measured)
-    
+    m2AngleSource = await m2.evt_inclinationTelemetrySource.aget(timeout=10.)
+    print("Inclinometer Source", MTM2.InclinationTelemetrySource(m2AngleSource.source), 
+          " ,event time = ",
+         pd.to_datetime(m2AngleSource.private_sndStamp, unit='s'))
+
     m2ForceBalance = await m2.evt_forceBalanceSystemStatus.aget(timeout=10.)
     if not m2ForceBalance.status:
         await m2.cmd_switchForceBalanceSystem.set_start(status=True, timeout=10)
