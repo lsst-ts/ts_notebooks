@@ -40,6 +40,9 @@ class MyLogHandler:
             print(f"{data.level}: {data.message}")
         self.nprint += 1
 
+def printLogMessage(data):
+    print(f"{data.level}: {data.message}")
+    
 async def checkAOSCompStates(m1m3, m2, camhex, m2hex):
 
     #m1m3
