@@ -402,10 +402,18 @@ async def moveMountConstantV(mount, startAngle, stopAngle):
         cyclePassed = np.floor(minutesEllapsed/(rampMinutes+holdMinutes))
         minutesIntoThisCycle = min(rampMinutes, minutesEllapsed - cyclePassed*(rampMinutes+holdMinutes))
         demandAngle = startAngle + angle_sign * (cyclePassed*angleStepSize + minutesIntoThisCycle * vAngle)
-        print(demandAngle,  cyclePassed, minutesIntoThisCycle, minutesEllapsed)
+        #print(demandAngle,  cyclePassed, minutesIntoThisCycle, minutesEllapsed)
         await mount.cmd_moveToTarget.set_start(azimuth=0, elevation=demandAngle)
         
         #a = await mount.tel_cameraCableWrap.next(flush=True, timeout=5)
         #await rot.cmd_move.set_start(position=a.actualPosition)
         
-        
+async def showSlewError(ptg, mount, rot):
+    a = await rot.evt_errorCode.aget()
+    print(a.errorReport, pd.to_datetime(a.private_sndStamp, unit='s'))
+    
+    a = await mount.evt_cameraCableWrapFollowing.aget()
+    print('CCW folowing? ', a.enabled, pd.to_datetime(a.private_sndStamp, unit='s'))
+    
+    #a = await mount.evt_logMessage.aget()
+    #print(a.message)
