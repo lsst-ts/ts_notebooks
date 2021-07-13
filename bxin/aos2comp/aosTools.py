@@ -417,3 +417,17 @@ async def showSlewError(ptg, mount, rot):
     
     #a = await mount.evt_logMessage.aget()
     #print(a.message)
+    
+async def readyMountL3(mount, rot):
+    a = await mount.tel_elevation.next(flush=True, timeout=5)
+    print("mount elevation Angle = ", a.actualPosition)
+    a = await mount.tel_azimuth.next(flush=True, timeout=5)
+    print("mount azimuth angle = ", a.actualPosition)
+    a = await mount.tel_cameraCableWrap.next(flush=True, timeout=5)
+    print("CCW angle = ", a.actualPosition, " Needs to be within 2.2 deg of rotator angle ")
+    b = await rot.tel_rotation.next(flush=True, timeout=5)
+    print("rot angle = ", b.actualPosition, "   diff = ", (b.actualPosition - a.actualPosition))
+    a = await mount.evt_cameraCableWrapFollowing.aget()
+    print('CCW folowing? ', a.enabled, pd.to_datetime(a.private_sndStamp, unit='s'))
+    if not a.enabled:
+        print('TRY ENABLING CCW FOLLOWING. OR, IF CCW IS OFF, TRY DISABLING THEN ENABLE MTMOUNT')
