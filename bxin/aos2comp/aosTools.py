@@ -14,6 +14,8 @@ from lsst.ts import salobj
 from lsst.ts.idl.enums import MTM1M3
 from lsst.ts.idl.enums import MTM2
 from lsst.ts.idl.enums import MTHexapod
+from lsst.ts.idl.enums import MTRotator
+
 
 m3ORC = 2.508
 m3IRC = 0.550
@@ -408,26 +410,61 @@ async def moveMountConstantV(mount, startAngle, stopAngle):
         #a = await mount.tel_cameraCableWrap.next(flush=True, timeout=5)
         #await rot.cmd_move.set_start(position=a.actualPosition)
         
-async def showSlewError(ptg, mount, rot):
-    a = await rot.evt_errorCode.aget()
-    print(a.errorReport, pd.to_datetime(a.private_sndStamp, unit='s'))
+
+async def moveRotTo0(rot, user_angle = 0):
+    rot.evt_inPosition.flush()
+    await rot.cmd_move.set_start(position=user_angle, timeout = 30)
+    while True:
+        try:
+            state = await rot.evt_inPosition.next(flush=False, timeout=30)
+        except asyncio.TimeoutError:
+            print("No inPosition event seen. Continuing")    
+            break
+        print('rot in position?', state.inPosition, pd.to_datetime(state.private_sndStamp, unit='s'))
+        if (state.inPosition):
+            break
+
+##########################################check errors ###############################################
+#async def checkPtgError(ptg, mount, rot):
+    
+
+
+async def checkMountError(mount):
+    a = await mount.evt_logMessage.aget()
+    print(a.message)
     
     a = await mount.evt_cameraCableWrapFollowing.aget()
     print('CCW folowing? ', a.enabled, pd.to_datetime(a.private_sndStamp, unit='s'))
-    
-    #a = await mount.evt_logMessage.aget()
-    #print(a.message)
-    
-async def readyMountL3(mount, rot):
+    if not a.enabled:
+        print('TRY ENABLING CCW FOLLOWING. OR, IF CCW IS OFF, TRY DISABLING THEN ENABLE MTMOUNT')
     a = await mount.tel_elevation.next(flush=True, timeout=5)
     print("mount elevation Angle = ", a.actualPosition)
     a = await mount.tel_azimuth.next(flush=True, timeout=5)
     print("mount azimuth angle = ", a.actualPosition)
     a = await mount.tel_cameraCableWrap.next(flush=True, timeout=5)
     print("CCW angle = ", a.actualPosition, " Needs to be within 2.2 deg of rotator angle ")
+
+
+async def checkRotError(rot):
+    a = await rot.evt_errorCode.aget()
+    print(a.errorReport, pd.to_datetime(a.private_sndStamp, unit='s'))
+    a = await rot.evt_logMessage.aget()
+    print(a.message, pd.to_datetime(a.private_sndStamp, unit='s'))
+    a = await rot.evt_controllerState.aget()
+    print(a.applicationStatus, MTRotator.ApplicationStatus(a.applicationStatus), 
+          pd.to_datetime(a.private_sndStamp, unit='s'))
+    
     b = await rot.tel_rotation.next(flush=True, timeout=5)
-    print("rot angle = ", b.actualPosition, "   diff = ", (b.actualPosition - a.actualPosition))
-    a = await mount.evt_cameraCableWrapFollowing.aget()
-    print('CCW folowing? ', a.enabled, pd.to_datetime(a.private_sndStamp, unit='s'))
-    if not a.enabled:
-        print('TRY ENABLING CCW FOLLOWING. OR, IF CCW IS OFF, TRY DISABLING THEN ENABLE MTMOUNT')
+    print("rot angle = ", b.actualPosition)
+
+async def checkM1M3Error(m1m3):
+    a = await m1m3.evt_errorCode.aget()
+    print(a.errorReport, pd.to_datetime(a.private_sndStamp, unit='s'))
+    
+async def checkHexError(hexa):
+    a = await hexa.evt_errorCode.aget()
+    print(a.errorReport, pd.to_datetime(a.private_sndStamp, unit='s'))
+    
+    a = await hexa.evt_controllerState.aget()
+    print(a.applicationStatus, MTHexapod.ApplicationStatus(a.applicationStatus[0]), 
+          pd.to_datetime(a.private_sndStamp, unit='s'))
